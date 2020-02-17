@@ -25,7 +25,6 @@ from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.utils.decorators import apply_defaults
 
-
 class RedshiftToS3Transfer(BaseOperator):
     """
     Executes an UNLOAD command to s3 as a CSV with headers
@@ -63,6 +62,9 @@ class RedshiftToS3Transfer(BaseOperator):
     :type include_header: bool
     :param table_as_file_name: If set to True, the s3 file will be named as the table
     :type table_as_file_name: bool
+    :param query: A query to run into redshift if None is given then will be used
+        the default "select * from {schema}.{table}"
+    :type query: str
     """
 
     template_fields = ()
@@ -72,7 +74,7 @@ class RedshiftToS3Transfer(BaseOperator):
     @apply_defaults
     def __init__(  # pylint: disable=too-many-arguments
             self,
-            schema: str,
+            schema: str, # Schema and table are not required anymore but it will be let for not breaking current workflows
             table: str,
             s3_bucket: str,
             s3_key: str,
@@ -83,6 +85,7 @@ class RedshiftToS3Transfer(BaseOperator):
             autocommit: bool = False,
             include_header: bool = False,
             table_as_file_name: bool = True,  # Set to True by default for not breaking current workflows
+            query: str = None,
             *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.schema = schema
@@ -96,6 +99,7 @@ class RedshiftToS3Transfer(BaseOperator):
         self.autocommit = autocommit
         self.include_header = include_header
         self.table_as_file_name = table_as_file_name
+        self.query = query
 
         if self.include_header and 'HEADER' not in [uo.upper().strip() for uo in self.unload_options]:
             self.unload_options = list(self.unload_options) + ['HEADER', ]
@@ -106,8 +110,12 @@ class RedshiftToS3Transfer(BaseOperator):
 
         credentials = s3_hook.get_credentials()
         unload_options = '\n\t\t\t'.join(self.unload_options)
+
         s3_key = '{}/{}_'.format(self.s3_key, self.table) if self.table_as_file_name else self.s3_key
-        select_query = "SELECT * FROM {schema}.{table}".format(schema=self.schema, table=self.table)
+
+        select_query = self.query if self.query else "SELECT * FROM {schema}.{table}"\
+                                                        .format(schema=self.schema, table=self.table)
+
         unload_query = """
                     UNLOAD ('{select_query}')
                     TO 's3://{s3_bucket}/{s3_key}'

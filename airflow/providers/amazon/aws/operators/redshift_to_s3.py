@@ -74,7 +74,7 @@ class RedshiftToS3Transfer(BaseOperator):
     @apply_defaults
     def __init__(  # pylint: disable=too-many-arguments
             self,
-            schema: str, # Schema and table are not required anymore but it will be let for not breaking current workflows
+            schema: str,  # Let required for not breaking current workflows
             table: str,
             s3_bucket: str,
             s3_key: str,
@@ -114,7 +114,7 @@ class RedshiftToS3Transfer(BaseOperator):
         s3_key = '{}/{}_'.format(self.s3_key, self.table) if self.table_as_file_name else self.s3_key
 
         select_query = self.query if self.query else "SELECT * FROM {schema}.{table}"\
-                                                        .format(schema=self.schema, table=self.table)
+            .format(schema=self.schema, table=self.table)
 
         unload_query = """
                     UNLOAD ('{select_query}')
